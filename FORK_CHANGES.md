@@ -13,7 +13,8 @@
   这一段是同步上游新版本、解决合并冲突时的主要依据。
 - 文档放在仓库根目录而不是 `docs/`：`AGENTS.md` 规定未经明确要求不得在 `docs/` 下新增文件；
   同时根目录的新文件不会与上游更新产生冲突。
-- 追加新记录时使用「五、记录模板」。
+- 追加新记录时使用「六、记录模板」。
+- 官方发布新版本时，按「五、同步上游更新的操作流程」执行。
 - 强制这条约定的规则写在 `.agents/rules/fork-changes.md`，由 `CLAUDE.md` 末尾的一行指向它
   —— 这一行是让规则在新会话里自动生效所必需的最小改动。
 
@@ -239,7 +240,113 @@ PayerScan 的回调**没有签名机制**：`completed` 事件在 body 里回传
 
 ---
 
-## 五、记录模板
+## 五、同步上游更新的操作流程
+
+官方发布新版本时按本节执行。**方向永远是：上游 → `main` → `production`，绝不反向。**
+
+下面的命令已用上游真实领先的 24 个提交完整实跑验证过。
+
+### 0. 一次性配置（每台机器只做一次）
+
+```bash
+git remote add upstream https://github.com/QuantumNous/new-api.git
+```
+
+### 1. 把官方更新同步进 `main`
+
+```bash
+git fetch upstream
+git checkout main
+git merge --ff-only upstream/main
+git push origin main
+```
+
+**必须用 `--ff-only`**。`main` 是官方的纯镜像，只应该快进。
+如果这一步失败，说明有人往 `main` 提交过东西，`main` 已经不是纯镜像了 —— 先把那些提交挪到
+功能分支上，不要用普通 merge 糊过去。
+
+### 2. 先在试验分支预演合并，不要直接动 `production`
+
+```bash
+git checkout -b sync-test production
+git merge main
+```
+
+看冲突清单：
+
+```bash
+git diff --name-only --diff-filter=U
+```
+
+想在合并前就知道会不会冲突，可以不落盘预演：
+
+```bash
+git merge-tree --write-tree production main
+```
+
+### 3. 解冲突
+
+对照「四、变更记录」里每条记录的**「修改的上游既有文件」**表 —— 那张表就是检查清单，
+冲突只可能出现在表里列出的文件中。
+
+- **语言包（`web/src/i18n/locales/*.json`）**：两边通常都只是新增文案，**保留两边的行**即可，
+  删掉 `<<<<<<<` / `=======` / `>>>>>>>` 三行标记。改完务必确认 JSON 仍然合法。
+- **其他文件**：我们的改动都是追加式的（注册一行、加一个 `case`、加一个分支），
+  上游改的是别的地方，**同时保留两边**基本就是正确答案。
+  如果发现上游把我们挂钩的位置整个重构掉了（比如 `GetTopUpInfo` 被改写、
+  `model/option.go` 的配置注册方式换了），那就按上游的新写法把我们的钩子重新挂一遍，
+  并在「四、变更记录」里补一条记录说明。
+
+### 4. 验证（不能跳过）
+
+```bash
+# 后端
+go build ./... && go vet ./controller/... ./service/... ./model/... ./setting/... ./router/...
+go test ./controller/... ./model/... ./setting/...
+
+# 前端
+cd web && bun install && bun run typecheck && bun run test && bun run build
+```
+
+再针对我们自己加的功能做一次冒烟：后台能打开 PayerScan 配置分区、能下单拿到收款页、
+回调能正常入账。
+
+### 5. 合进 `production` 并发布
+
+先留退路：
+
+```bash
+git branch production-backup-$(git rev-parse --short production) production
+git push origin production-backup-$(git rev-parse --short production)
+```
+
+再正式合并：
+
+```bash
+git checkout production
+git merge main          # 或者把验证通过的 sync-test 合进来
+git push origin production
+```
+
+出问题就用 backup 分支回滚。
+
+### 6. 补记录
+
+在「四、变更记录」追加一条同步记录：同步到了上游哪个提交、冲突出现在哪些文件、怎么解的。
+下次同步时这条记录就是参考。
+
+### 同步记录
+
+| 日期 | 同步到上游提交 | 冲突文件 | 处理方式 |
+| --- | --- | --- | --- |
+| 2026-09-21（预演，未合并） | `9c293e8`（领先 24 个提交） | 7 个语言包，各 2 行 | 保留两边的文案行 |
+
+预演结果：Go 与前端代码 11 个文件全部自动合并成功；解完语言包冲突后
+`go build` / `go vet` / `go test ./controller/... ./model/... ./setting/...` 全部通过。
+
+---
+
+## 六、记录模板
 
 ```markdown
 ### NNN — <改动标题>
