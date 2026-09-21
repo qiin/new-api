@@ -42,6 +42,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const behaviorSchema = z.object({
   DefaultCollapseSidebar: z.boolean(),
+  SidebarPersonalizationEnabled: z.boolean(),
   DemoSiteEnabled: z.boolean(),
   SelfUseModeEnabled: z.boolean(),
 })
@@ -92,6 +93,29 @@ export function SystemBehaviorSection({
                   <FormLabel>{t('Default Collapse Sidebar')}</FormLabel>
                   <FormDescription>
                     {t('Sidebar collapsed by default for new users')}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='SidebarPersonalizationEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Allow Sidebar Personalization')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Let admins and normal users customize which sidebar sections they see. Turning this off hides the settings card for everyone except root.'
+                    )}
                   </FormDescription>
                 </SettingsSwitchContent>
                 <FormControl>

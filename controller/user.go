@@ -531,6 +531,10 @@ func calculateUserPermissions(userRole int) map[string]any {
 		// 超级管理员不需要边栏设置功能
 		permissions["sidebar_settings"] = false
 		permissions["sidebar_modules"] = map[string]any{}
+	} else if !common.SidebarPersonalizationEnabled {
+		// 管理员已在站点设置中关闭边栏个性化功能：管理员和普通用户都不再展示该设置卡片
+		permissions["sidebar_settings"] = false
+		permissions["sidebar_modules"] = map[string]any{}
 	} else if userRole == common.RoleAdminUser {
 		// 管理员可以设置边栏，但不包含系统设置功能
 		permissions["sidebar_settings"] = true

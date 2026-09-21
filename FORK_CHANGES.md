@@ -281,6 +281,78 @@ PayerScan 的回调**没有签名机制**：`completed` 事件在 body 里回传
 - 下单时若 PayerScan 返回失败，订单会被标记为 `failed`。极端情况下（PayerScan 已建单但响应丢失）
   用户仍可能完成支付，此时回调会命中「已关闭订单收到支付完成回调」的 error 日志，需要人工核对。
 
+### 002 — 新增站点级开关：允许/禁止边栏个性化设置
+
+| 项 | 内容 |
+| --- | --- |
+| 日期 | 2026-09-21 |
+| 分支 | `feature/sidebar-personalization-toggle` |
+| PR | （待创建） |
+| 提交 | （待提交） |
+| 基线 | `1811d6d33`（`production`） |
+
+#### 需求
+
+个人资料页右侧的「左侧边栏个人设置」卡片（`SidebarModulesCard`，用户可自行勾选要在侧边栏
+显示哪些区域）此前是否显示完全写死在后端角色逻辑里：超级管理员看不到，管理员和普通用户都
+必然能看到，没有站点级开关。用户希望能在管理端把这张卡片对管理员和普通用户也隐藏掉。
+
+#### 修改的上游既有文件（全部为追加式改动）
+
+| 文件 | 改了什么 |
+| --- | --- |
+| `common/constants.go` | 新增变量 `SidebarPersonalizationEnabled`（默认 `true`），紧跟在既有的 `DefaultCollapseSidebar` 变量之后 |
+| `model/option.go` | `InitOptionMap` 追加一行注册该键；`updateOptionMap` 的布尔开关分支追加一个 `case`（键名以 `Enabled` 结尾，自动落入既有的通用布尔分支，未改动那条 `HasSuffix` 判断本身） |
+| `controller/user.go` | `calculateUserPermissions` 在超级管理员分支之后追加一个 `else if !common.SidebarPersonalizationEnabled` 分支，管理员与普通用户在开关关闭时也返回 `sidebar_settings=false`；未改动既有的角色分支内部逻辑 |
+| `web/src/features/system-settings/types.ts` | `OperationsSettings` 追加字段 `SidebarPersonalizationEnabled: boolean` |
+| `web/src/features/system-settings/operations/index.tsx` | 默认值对象追加 `SidebarPersonalizationEnabled: true` |
+| `web/src/features/system-settings/operations/section-registry.tsx` | 传给 `SystemBehaviorSection` 的 `defaultValues` 追加该字段 |
+| `web/src/features/system-settings/general/system-behavior-section.tsx` | schema 追加字段；在既有的「默认折叠侧边栏」开关之后追加一个新的 `FormField` 开关，UI 结构与其完全一致 |
+| `web/src/i18n/locales/*.json`（7 个语言） | 新增 2 条文案，按约定插入 A-Z 有序区，不追加到文件末尾 |
+
+前端「显示与否」的判断逻辑（`web/src/features/profile/index.tsx` 的 `canConfigureSidebar =
+permissions?.sidebar_settings !== false`）**完全没有改动** —— 它早已读取后端下发的
+`sidebar_settings`，本次只是让后端多一种情况能把这个值算成 `false`。
+
+#### 新增配置项
+
+| 键 | 说明 |
+| --- | --- |
+| `SidebarPersonalizationEnabled` | 布尔，默认 `true`。关闭后管理员和普通用户都不再看到「左侧边栏个人设置」卡片，超级管理员不受影响（本来就看不到）。位置：系统设置 → 运营 → 系统行为 → 「允许边栏个性化设置」 |
+
+#### 设计要点
+
+- 范围选择（对管理员和普通用户都隐藏，而不是只隐藏普通用户）由用户在对话中明确选定。
+- 关闭开关不会清除用户此前保存的个人侧边栏偏好（`sidebar_modules`）：`use-sidebar-config.ts`
+  里已有的逻辑是 `sidebar_settings === false` 时跳过用户偏好覆盖层，直接呈现管理员配置的完整
+  视图；重新打开开关后旧偏好会自动生效，不需要额外的数据迁移或清理。这与超级管理员分支复用
+  同一条既有逻辑，未新增分支。
+- 没有新建文件：改动点分散在 8 个上游文件里，但每处都是"加一行 / 加一个 case / 加一个
+  FormField 块"，没有重排或重构既有代码。
+
+#### 验证结果
+
+| 检查 | 结果 |
+| --- | --- |
+| `go build ./...` | 通过 |
+| `go vet ./controller/... ./common/... ./model/... ./setting/... ./router/...` | 通过 |
+| `go test ./controller/... ./model/... ./setting/... ./common/...` | 通过（新增 1 个测试文件，6 个用例） |
+| `bun run typecheck` | 通过 |
+| `bun run test` | 154 个文件 / 1949 个用例全部通过 |
+| `bun run build` | 通过 |
+| `oxlint`（本次改动的文件） | 无 error |
+
+新增测试 `controller/user_permissions_test.go`：覆盖开关开/关状态下超级管理员、管理员、普通
+用户三种角色的 `sidebar_settings` 取值，确认超级管理员始终被排除、开关关闭后管理员和普通用户
+都被排除、开关打开后二者都恢复可配置。
+
+#### 已知限制 / 待办
+
+- 未做数据库改动，未触发三数据库验证矩阵的适用条件。
+- 未新增前端测试：`system-behavior-section.tsx` 里既有的同类开关（`DefaultCollapseSidebar`）
+  本身也没有专门的单元测试，本次新开关遵循同一先例，未额外补充；真正的行为分支（是否显示卡片）
+  已在后端用例中覆盖。
+
 ---
 
 ## 五、同步上游更新的操作流程
