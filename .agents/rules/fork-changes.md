@@ -3,6 +3,16 @@
 本仓库是上游 new-api 的 fork：`main` 只用于同步官方版本，二次开发的改动最终合并进 `production`。
 任何改动上游代码的任务都必须遵守本文件，规则的 MUST / 不得 与 `AGENTS.md` 同等效力。
 
+## 分支（强制）
+
+- `main` 是上游的纯镜像，只快进同步，不在上面改业务代码。
+- **功能分支从 `production` 切出，不从 `main` 切出**，合回 `production`。
+  从 `main` 切出会把官方提交混进功能合并，一次合并同时承载「新功能」和「上游同步」两种变化。
+- 同步线（上游 → `main` → `production`）与功能线（`production` → 功能分支 → `production`）
+  必须是两次独立的合并，不要混在一起。
+- 开新功能前先确认 `production` 已经同步到最新 `main`，再切分支。
+- 提交前自检 `git log --oneline origin/production..HEAD`，里面不应该出现官方提交。
+
 ## 变更记录（强制）
 
 - 开始改动前，先用文件读取工具读仓库根目录的 `FORK_CHANGES.md`，了解已有的二次开发改动、分支约定与

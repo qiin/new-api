@@ -13,8 +13,8 @@
   这一段是同步上游新版本、解决合并冲突时的主要依据。
 - 文档放在仓库根目录而不是 `docs/`：`AGENTS.md` 规定未经明确要求不得在 `docs/` 下新增文件；
   同时根目录的新文件不会与上游更新产生冲突。
-- 追加新记录时使用「六、记录模板」。
-- 官方发布新版本时，按「五、同步上游更新的操作流程」执行。
+- 追加新记录时使用「七、记录模板」。
+- 官方发布新版本时，按「五、同步上游更新的操作流程」执行；开发新功能时，按「六、功能分支的操作流程」执行。
 - 强制这条约定的规则写在 `.agents/rules/fork-changes.md`，由 `CLAUDE.md` 末尾的一行指向它
   —— 这一行是让规则在新会话里自动生效所必需的最小改动。
 
@@ -22,11 +22,30 @@
 
 ## 二、仓库与分支约定
 
-| 分支 | 用途 |
-| --- | --- |
-| `main` | fork 上游官方仓库，**只用于同步官方最新版本**，不在此分支直接改业务代码 |
-| `production` | 发布分支。二次开发的改动合并到这里，正式发布部署以此分支为准 |
-| 功能分支 | 从 `main` 切出，开发完成后合并进 `production` |
+| 分支 | 用途 | 从哪来 | 合到哪去 |
+| --- | --- | --- | --- |
+| `main` | 上游官方仓库的**纯镜像**，只同步，不改业务代码 | 上游 `upstream/main`（只快进） | `production` |
+| `production` | 发布分支，官方代码 + 我们的改动，部署以此为准 | `main` 与功能分支 | —（终点） |
+| 功能分支 | 一个功能 / 一次修复 | **从 `production` 切出** | `production` |
+
+两条线都汇入 `production`，但**各走各的，不要混在一次合并里**：
+
+```
+上游 upstream/main ──快进──> main ──同步合并──┐
+                                              ├──> production ──> 部署
+          功能分支（从 production 切出）──────┘
+```
+
+- **同步线**（`上游 → main → production`）：只带官方的改动。
+- **功能线**（`production → 功能分支 → production`）：只带我们自己的改动。
+
+**功能分支必须从 `production` 切出，不要从 `main` 切出。**
+从 `main` 切出会导致合并时把 `main` 上那些官方提交一起带进 `production` ——
+一次合并同时承载「新功能」和「上游同步」两种变化，PR 的 diff 里混着官方提交，
+出问题也分不清是谁引起的。从 `production` 切出，功能分支的 diff 就只有我们自己写的东西。
+
+代价是：`production` 可能落后于最新官方代码。所以**开发新功能前，先按第五节把
+`production` 同步到最新**，再切分支，这样既基于最新官方代码，又保持两条线分离。
 
 `production` 最初与 `main` 完全一致，只有修改了开源项目代码之后，才会把改动合并进
 `production`，再发布部署。
@@ -87,6 +106,10 @@
 | PR | https://github.com/qiin/new-api/pull/1 |
 | 提交 | `628b980` |
 | 基线 | `972aed1`（`main`） |
+
+> 注：本分支是从 `main` 切出的（当时 `production` 还没有任何自有改动，树与 `main` 的祖先一致），
+> 因此合并进 `production` 是 fast-forward，会把 `main` 上那 8 个官方提交一起带进去 —— 这次是干净的。
+> 从 002 开始按第二节的规定，功能分支一律从 `production` 切出。
 
 #### 需求
 
@@ -244,6 +267,12 @@ PayerScan 的回调**没有签名机制**：`completed` 事件在 body 里回传
 
 官方发布新版本时按本节执行。**方向永远是：上游 → `main` → `production`，绝不反向。**
 
+功能分支不参与这条线，它走自己的「功能线」（见第六节）。两条线都汇入 `production`，
+但要分成两次独立的合并，不要混在一起。
+
+**标准节奏：先同步，再开发。** 手上有功能要做时，顺序是
+①上游 → `main` ②`main` → `production` ③从 `production` 切功能分支 ④功能分支 → `production`。
+
 下面的命令已用上游真实领先的 24 个提交完整实跑验证过。
 
 ### 0. 一次性配置（每台机器只做一次）
@@ -346,7 +375,68 @@ git push origin production
 
 ---
 
-## 六、记录模板
+## 六、功能分支的操作流程
+
+我们自己改代码走这条线。和第五节的同步线分开走。
+
+### 1. 先确认 `production` 是最新的
+
+```bash
+git fetch origin
+git log --oneline origin/main..origin/production   # 应为空，否则先按第五节同步
+```
+
+`production` 落后于 `main` 就先同步，再开分支。不要在旧代码上开发。
+
+### 2. 从 `production` 切分支
+
+```bash
+git checkout -b <feature-branch> origin/production
+```
+
+**不要从 `main` 切**，理由见第二节。
+
+### 3. 开发
+
+遵守第三节的核心约束：新增文件承载逻辑，对上游既有文件只做追加式最小改动。
+改完在「四、变更记录」追加一条记录（这是强制的，见第一节）。
+
+### 4. 提交前自检
+
+```bash
+# 只含我们自己的改动？（不应该出现官方提交）
+git log --oneline origin/production..HEAD
+
+# 实测能不能跟上游合并
+git fetch upstream
+git merge-tree --write-tree HEAD upstream/main
+```
+
+有冲突就调整改动位置，别留给以后。再跑第五节第 4 步的完整验证。
+
+### 5. 开发期间上游更新了怎么办
+
+先按第五节把 `production` 同步到最新，然后在功能分支上：
+
+```bash
+git merge production
+```
+
+**用 merge，不要 rebase** —— 分支已经推送且挂着 PR，rebase 会让别人的检出失效。
+
+### 6. 合并发布
+
+```bash
+git checkout production
+git merge <feature-branch>
+git push origin production
+```
+
+合并前照例先打 backup 分支（见第五节第 5 步）。
+
+---
+
+## 七、记录模板
 
 ```markdown
 ### NNN — <改动标题>
