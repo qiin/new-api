@@ -287,6 +287,8 @@ PayerScan 的回调**没有签名机制**：`completed` 事件在 body 里回传
 
 官方发布新版本时按本节执行。**方向永远是：上游 → `main` → `production`，绝不反向。**
 
+**不需要每次官方有提交就同步。** 按自己的节奏，挑一个官方版本标签升级即可（见第 1 步）。
+
 功能分支不参与这条线，它走自己的「功能线」（见第六节）。两条线都汇入 `production`，
 但要分成两次独立的合并，不要混在一起。
 
@@ -303,16 +305,41 @@ git remote add upstream https://github.com/QuantumNous/new-api.git
 
 ### 1. 把官方更新同步进 `main`
 
+**同步到版本标签，不要同步到 `upstream/main` 的最新提交。**
+`upstream/main` 的 HEAD 是官方此刻正在开发的状态，可能包含没验证完的改动；
+版本标签才是官方打包发版、构建 Docker 镜像的那个点。
+
+先看有哪些版本可选：
+
 ```bash
-git fetch upstream
+git fetch upstream --tags
+git tag -l 'v*' --sort=-v:refname | head        # 最新的若干个版本
+git log --oneline <当前版本>..<目标版本>         # 这次会带进来哪些改动
+```
+
+官方的 Release 说明在 https://github.com/QuantumNous/new-api/releases ，
+升级前先看一眼有没有破坏性改动、数据库迁移或配置变更。
+
+确定目标版本后：
+
+```bash
 git checkout main
-git merge --ff-only upstream/main
+git merge --ff-only v1.0.0-rc.39                # 换成你选的标签
 git push origin main
 ```
 
 **必须用 `--ff-only`**。`main` 是官方的纯镜像，只应该快进。
 如果这一步失败，说明有人往 `main` 提交过东西，`main` 已经不是纯镜像了 —— 先把那些提交挪到
 功能分支上，不要用普通 merge 糊过去。
+
+> **关于「稳定版」**：截至 2026-09-21，上游 1.x 只发布了 `v1.0.0-rc.N` 系列（当时最新 `rc.39`），
+> **没有不带 `-rc` 后缀的正式版**；更早的是 `0.x.y` 系列。也就是说官方目前就是以 rc 对外发版的，
+> 等「正式稳定版」可能要等很久。实际操作建议：选一个发布了几天、issue 区没有集中反馈问题的 rc，
+> 不要追最新那个。
+>
+> 另外注意，我们的 `main` 当前停在 `v1.0.0-rc.38` 之后 8 个提交的位置（不在任何标签上）——
+> 这是早期同步时直接跟了 `main` HEAD 造成的。下次同步到某个标签后就会重新对齐。
+> 用 `git describe --tags main` 可以随时看 `main` 落在哪个版本附近。
 
 ### 2. 先在试验分支预演合并，不要直接动 `production`
 
@@ -347,6 +374,9 @@ git merge-tree --write-tree production main
   并在「四、变更记录」里补一条记录说明。
 
 ### 4. 验证（不能跳过）
+
+> **本仓库的 GitHub Actions 目前是关闭的**，所以下面这些必须手动跑，没有自动把关。
+> 详见本节末尾「关于 CI」。
 
 ```bash
 # 后端
@@ -384,11 +414,39 @@ git push origin production
 在「四、变更记录」追加一条同步记录：同步到了上游哪个提交、冲突出现在哪些文件、怎么解的。
 下次同步时这条记录就是参考。
 
+### 关于 CI
+
+CI（Continuous Integration，持续集成）指代码推上去之后，由 GitHub 自动在服务器上跑一遍
+编译和测试，结果显示在 PR 页面上 —— 相当于一个不会忘事的门卫，替你挡住编译不过或测试挂掉的代码。
+
+上游已经写好了配置，就在 `.github/workflows/ci.yml`，PR 一开就会跑：
+
+- **Backend vet, build, and test** —— 后端 `go vet` / `go build` / `go test`
+- **Frontend typecheck and test** —— 前端 `bun run typecheck` / `bun run test`
+
+**但这个 fork 里它没有生效**：GitHub 对 fork 仓库默认关闭 Actions，需要手动开。
+证据：PR #1 的 check runs 为 0，查 `ci.yml` 的运行记录返回 404（工作流未注册）。
+
+**要不要开，自己权衡：**
+
+| | 开启 | 不开（现状） |
+| --- | --- | --- |
+| 把关 | 每个 PR 自动跑编译和测试 | 全靠本地手动跑，漏了就漏了 |
+| 成本 | 私有仓库消耗 Actions 额度；公开仓库免费 | 无 |
+| 同步上游时 | 合完直接看 CI 结果，省去本地跑一遍 | 必须本地完整验证 |
+
+开启方式：仓库 → Settings → Actions → General → 选 “Allow all actions”，
+或在 Actions 标签页点 “I understand my workflows, go ahead and enable them”。
+
+**在没开启之前，第 4 步的手动验证不能省。**
+
 ### 同步记录
 
-| 日期 | 同步到上游提交 | 冲突文件 | 处理方式 |
+| 日期 | 同步到的版本 | 冲突文件 | 处理方式 |
 | --- | --- | --- | --- |
-| 2026-09-21（预演，未合并） | `9c293e8`（领先 24 个提交） | 7 个语言包，各 2 行 | 保留两边的文案行 |
+| 2026-09-21（预演，未合并） | `upstream/main` HEAD `9c293e8`（领先 24 个提交） | 7 个语言包，各 2 行 | 保留两边的文案行 |
+
+> 上表这次是跟 `main` HEAD 做的预演。**后续一律同步到版本标签**，本列请填标签名（如 `v1.0.0-rc.39`）。
 
 预演结果：Go 与前端代码 11 个文件全部自动合并成功；解完语言包冲突后
 `go build` / `go vet` / `go test ./controller/... ./model/... ./setting/...` 全部通过。
