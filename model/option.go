@@ -125,6 +125,12 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
+	common.OptionMap["PayerScanEnabled"] = strconv.FormatBool(setting.PayerScanEnabled)
+	common.OptionMap["PayerScanMerchantID"] = setting.PayerScanMerchantID
+	common.OptionMap["PayerScanApiKey"] = setting.PayerScanApiKey
+	common.OptionMap["PayerScanBaseURL"] = setting.PayerScanBaseURL
+	common.OptionMap["PayerScanUnitPrice"] = strconv.FormatFloat(setting.PayerScanUnitPrice, 'f', -1, 64)
+	common.OptionMap["PayerScanMinTopUp"] = strconv.Itoa(setting.PayerScanMinTopUp)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -567,6 +573,18 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+	case "PayerScanEnabled":
+		setting.PayerScanEnabled = value == "true"
+	case "PayerScanMerchantID":
+		setting.PayerScanMerchantID = value
+	case "PayerScanApiKey":
+		setting.PayerScanApiKey = value
+	case "PayerScanBaseURL":
+		setting.PayerScanBaseURL = value
+	case "PayerScanUnitPrice":
+		setting.PayerScanUnitPrice, _ = strconv.ParseFloat(value, 64)
+	case "PayerScanMinTopUp":
+		setting.PayerScanMinTopUp, _ = strconv.Atoi(value)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

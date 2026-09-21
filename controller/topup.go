@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -96,12 +97,25 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	enablePayerScan := isPayerScanTopUpEnabled()
+	if enablePayerScan && !slices.ContainsFunc(payMethods, func(method map[string]string) bool {
+		return method["type"] == model.PaymentMethodPayerScan
+	}) {
+		payMethods = append(payMethods, map[string]string{
+			"name":      "PayerScan (Crypto)",
+			"type":      model.PaymentMethodPayerScan,
+			"color":     "#0EA5E9",
+			"min_topup": strconv.Itoa(setting.PayerScanMinTopUp),
+		})
+	}
+
 	data := gin.H{
 		"enable_online_topup":              isEpayTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
+		"enable_payerscan_topup":           enablePayerScan,
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
@@ -117,6 +131,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"stripe_min_topup":        setting.StripeMinTopUp,
 		"waffo_min_topup":         setting.WaffoMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
+		"payerscan_min_topup":     setting.PayerScanMinTopUp,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,

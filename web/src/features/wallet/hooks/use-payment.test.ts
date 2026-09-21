@@ -41,9 +41,42 @@ describe('payment amount routing', () => {
         calls.push('pancake')
         return { success: true, data: '4' }
       },
+      payerScan: async () => {
+        calls.push('payerscan')
+        return { success: true, data: '5' }
+      },
     })
 
     expect(amount).toBe(18.75)
     expect(calls).toEqual(['waffo:120'])
+  })
+
+  test('uses the dedicated PayerScan amount calculator', async () => {
+    const calls: string[] = []
+    const amount = await requestPaymentAmount(20, PAYMENT_TYPES.PAYERSCAN, {
+      regular: async () => {
+        calls.push('regular')
+        return { success: true, data: '1' }
+      },
+      stripe: async () => {
+        calls.push('stripe')
+        return { success: true, data: '2' }
+      },
+      waffo: async () => {
+        calls.push('waffo')
+        return { success: true, data: '3' }
+      },
+      waffoPancake: async () => {
+        calls.push('pancake')
+        return { success: true, data: '4' }
+      },
+      payerScan: async (request) => {
+        calls.push(`payerscan:${request.amount}`)
+        return { success: true, data: '24.00' }
+      },
+    })
+
+    expect(amount).toBe(24)
+    expect(calls).toEqual(['payerscan:20'])
   })
 })

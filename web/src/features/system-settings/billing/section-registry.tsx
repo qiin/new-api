@@ -21,7 +21,9 @@ import { parseCurrencyDisplayType } from '@/lib/currency'
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
+import { PayerScanSettingsSection } from '../integrations/payerscan-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
+import { removeTrailingSlash } from '../integrations/utils'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
@@ -52,6 +54,19 @@ const getGroupDefaults = (settings: BillingSettings) => ({
   GroupSpecialUsableGroup:
     settings['group_ratio_setting.group_special_usable_group'],
 })
+
+// Mirrors the backend's GetCallbackAddress(): the custom callback address wins,
+// otherwise callbacks land on the host the console is served from.
+const getPayerScanWebhookUrl = (customCallbackAddress: string) => {
+  const base = removeTrailingSlash(customCallbackAddress)
+  if (base) {
+    return `${base}/api/payerscan/webhook`
+  }
+  if (typeof window === 'undefined') {
+    return '/api/payerscan/webhook'
+  }
+  return `${window.location.origin}/api/payerscan/webhook`
+}
 
 const BILLING_SECTIONS = [
   {
@@ -186,6 +201,30 @@ const BILLING_SECTIONS = [
           confirmedAt: settings['payment_setting.compliance_confirmed_at'] ?? 0,
           confirmedBy: settings['payment_setting.compliance_confirmed_by'] ?? 0,
         }}
+      />
+    ),
+  },
+  {
+    id: 'payerscan',
+    titleKey: 'PayerScan (Crypto)',
+    build: (settings: BillingSettings) => (
+      <PayerScanSettingsSection
+        defaultValues={{
+          PayerScanEnabled: settings.PayerScanEnabled ?? false,
+          PayerScanMerchantID: settings.PayerScanMerchantID ?? '',
+          // Secrets are stripped from GET /api/option/, so the field always
+          // starts blank and an empty submit keeps the stored key.
+          PayerScanApiKey: '',
+          PayerScanBaseURL: settings.PayerScanBaseURL ?? '',
+          PayerScanUnitPrice: settings.PayerScanUnitPrice ?? 1,
+          PayerScanMinTopUp: settings.PayerScanMinTopUp ?? 1,
+        }}
+        webhookUrl={getPayerScanWebhookUrl(settings.CustomCallbackAddress)}
+        complianceConfirmed={
+          (settings['payment_setting.compliance_confirmed'] ?? false) &&
+          settings['payment_setting.compliance_terms_version'] === 'v1'
+        }
+        hasStoredApiKey={Boolean(settings.PayerScanMerchantID)}
       />
     ),
   },

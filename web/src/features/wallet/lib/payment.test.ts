@@ -24,6 +24,7 @@ import {
   isStripePayment,
   isWaffoPayment,
   isWaffoPancakePayment,
+  isPayerScanPayment,
 } from './payment'
 
 describe('payment type classification', () => {
@@ -33,6 +34,12 @@ describe('payment type classification', () => {
     expect(isWaffoPancakePayment(PAYMENT_TYPES.WAFFO_PANCAKE)).toBe(true)
     expect(isWaffoPancakePayment(PAYMENT_TYPES.WAFFO)).toBe(false)
     expect(isStripePayment(PAYMENT_TYPES.STRIPE)).toBe(true)
+  })
+
+  test('keeps PayerScan off the generic epay form flow', () => {
+    expect(isPayerScanPayment(PAYMENT_TYPES.PAYERSCAN)).toBe(true)
+    expect(isPayerScanPayment(PAYMENT_TYPES.WAFFO_PANCAKE)).toBe(false)
+    expect(isPayerScanPayment(PAYMENT_TYPES.ALIPAY)).toBe(false)
   })
 })
 
@@ -56,11 +63,45 @@ describe('payment dispatch', () => {
           calls.push('pancake')
           return false
         },
+        payerScan: async () => {
+          calls.push('payerscan')
+          return false
+        },
       }
     )
 
     expect(success).toBe(true)
     expect(calls).toEqual(['waffo:120:3'])
+  })
+
+  test('routes a PayerScan selection to the hosted crypto checkout', async () => {
+    const calls: string[] = []
+    const success = await dispatchSelectedPayment(
+      { name: 'PayerScan (Crypto)', type: PAYMENT_TYPES.PAYERSCAN },
+      50,
+      null,
+      {
+        regular: async () => {
+          calls.push('regular')
+          return false
+        },
+        waffo: async () => {
+          calls.push('waffo')
+          return false
+        },
+        waffoPancake: async () => {
+          calls.push('pancake')
+          return false
+        },
+        payerScan: async (amount) => {
+          calls.push(`payerscan:${amount}`)
+          return true
+        },
+      }
+    )
+
+    expect(success).toBe(true)
+    expect(calls).toEqual(['payerscan:50'])
   })
 
   test('does not create a Waffo order without a selected method index', async () => {
@@ -76,6 +117,7 @@ describe('payment dispatch', () => {
           return true
         },
         waffoPancake: async () => false,
+        payerScan: async () => false,
       }
     )
 

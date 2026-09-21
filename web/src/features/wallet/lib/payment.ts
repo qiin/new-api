@@ -93,10 +93,21 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
   return paymentType === PAYMENT_TYPES.WAFFO_PANCAKE
 }
 
+/**
+ * Check if payment method is PayerScan
+ *
+ * PayerScan raises a hosted crypto invoice and answers with a checkout URL
+ * instead of the epay form parameters, so it needs its own dispatch branch.
+ */
+export function isPayerScanPayment(paymentType: string): boolean {
+  return paymentType === PAYMENT_TYPES.PAYERSCAN
+}
+
 export interface PaymentProcessors {
   regular: (topupAmount: number, paymentType: string) => Promise<boolean>
   waffo: (topupAmount: number, payMethodIndex: number) => Promise<boolean>
   waffoPancake: (topupAmount: number) => Promise<boolean>
+  payerScan: (topupAmount: number) => Promise<boolean>
 }
 
 export async function dispatchSelectedPayment(
@@ -114,6 +125,10 @@ export async function dispatchSelectedPayment(
 
   if (isWaffoPancakePayment(paymentMethod.type)) {
     return processors.waffoPancake(topupAmount)
+  }
+
+  if (isPayerScanPayment(paymentMethod.type)) {
+    return processors.payerScan(topupAmount)
   }
 
   return processors.regular(topupAmount, paymentMethod.type)
@@ -144,6 +159,10 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
     return PAYMENT_TYPES.WAFFO_PANCAKE
   }
 
+  if (topupInfo.enable_payerscan_topup) {
+    return PAYMENT_TYPES.PAYERSCAN
+  }
+
   return DEFAULT_PAYMENT_TYPE
 }
 
@@ -169,6 +188,10 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
 
   if (topupInfo.enable_waffo_pancake_topup) {
     return topupInfo.waffo_pancake_min_topup || DEFAULT_MIN_TOPUP
+  }
+
+  if (topupInfo.enable_payerscan_topup) {
+    return topupInfo.payerscan_min_topup || DEFAULT_MIN_TOPUP
   }
 
   return DEFAULT_MIN_TOPUP

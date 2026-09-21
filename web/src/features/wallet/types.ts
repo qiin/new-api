@@ -45,6 +45,15 @@ export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
 >
+export type PayerScanPaymentResponse = ApiResponse<
+  | {
+      checkout_url?: string
+      /** PayerScan invoice id, shown in the operator's PayerScan dashboard */
+      trans_id?: string
+      order_id?: string
+    }
+  | string
+>
 export type WaffoPancakePaymentResponse = ApiResponse<
   | {
       checkout_url?: string
@@ -150,6 +159,10 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether PayerScan crypto topup is enabled */
+  enable_payerscan_topup?: boolean
+  /** Minimum topup amount for PayerScan */
+  payerscan_min_topup?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
   /** Whether compliance confirmation has been completed */
@@ -200,6 +213,14 @@ export interface WaffoPaymentRequest {
  * Waffo Pancake payment request parameters
  */
 export interface WaffoPancakePaymentRequest {
+  /** Topup amount */
+  amount: number
+}
+
+/**
+ * PayerScan payment request parameters
+ */
+export interface PayerScanPaymentRequest {
   /** Topup amount */
   amount: number
 }
