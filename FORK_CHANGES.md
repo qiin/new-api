@@ -304,7 +304,12 @@ PayerScan 的回调**没有签名机制**：`completed` 事件在 body 里回传
 
 ```bash
 git remote add upstream https://github.com/QuantumNous/new-api.git
+
+# 保险：确保 push 不会自动带上标签（默认就是 false，这里是防止全局配置被改过）
+git config --local push.followTags false
 ```
+
+用 `git config --get push.followTags` 可以随时确认，输出为空或 `false` 即安全。
 
 ### 1. 把官方更新同步进 `main`
 
@@ -328,8 +333,16 @@ git log --oneline <当前版本>..<目标版本>         # 这次会带进来哪
 ```bash
 git checkout main
 git merge --ff-only v1.0.0-rc.39                # 换成你选的标签
-git push origin main
+git push origin main                            # 只推分支，不要加 --tags
 ```
+
+> 🚫 **绝对不要 `git push origin --tags` / `git push --follow-tags`。**
+> 上游标签只拉到本地就够用了 —— 合并用的是本地标签，推不推到我们的仓库不影响任何事。
+> 一旦把上游那几十个标签推上来，`docker-build.yml` 和 `release.yml` 会被逐个触发
+> （它们的触发条件是 `tags: ['*']`，只排除了 `nightly*` / `*-alpha*`，`v1.0.0-rc.N` 照样命中），
+> 一次性烧光 Actions 额度，还可能以你的名义发布镜像和 Release。详见本节末尾「关于 CI」。
+>
+> `git fetch upstream --tags` 只写本地，是安全的；`git push origin main` 默认也不带标签。
 
 **必须用 `--ff-only`**。`main` 是官方的纯镜像，只应该快进。
 如果这一步失败，说明有人往 `main` 提交过东西，`main` 已经不是纯镜像了 —— 先把那些提交挪到

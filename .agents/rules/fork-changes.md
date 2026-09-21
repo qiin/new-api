@@ -39,5 +39,8 @@
   发现上游有新版本可以告知，但不要顺手把它合进来，也不要在做别的任务时「顺便」同步。
 - 同步上游时**同步到官方版本标签**（`git merge --ff-only v1.0.0-rc.N`），不要跟 `upstream/main` 的
   最新提交。不需要每次官方有提交就同步。
+- **绝对不要把标签推到 `origin`**：只用 `git push origin main`，禁止 `--tags` / `--follow-tags`，
+  禁止把 `push.followTags` 设为 true。`git fetch upstream --tags` 只写本地，是安全的。
+  原因：`docker-build.yml` 与 `release.yml` 的触发条件是 `tags: ['*']`，推上去会逐个触发构建与发版。
 - 本仓库的 GitHub Actions 未启用，没有自动 CI 把关，`FORK_CHANGES.md` 第五节第 4 步的
   验证命令必须手动跑完，不得以「应该没问题」代替。
