@@ -210,6 +210,22 @@ PayerScan 的回调**没有签名机制**：`completed` 事件在 body 里回传
 回调鉴权（商户号错误、缺 API Key、API Key 错误、报文损坏、外部订单号、未知状态、渠道关闭）、
 建单报文格式、查单报文解析（金额字符串与数字两种形式、错误信封）、基址校验。
 
+#### 上游合并实测
+
+拉取上游 `QuantumNous/new-api` 当时领先的 24 个提交，用 `git merge-tree --write-tree` 实测合并：
+
+- 所有 Go 文件、所有前端 TSX/TS 文件**全部自动合并成功**，包括上游同期也改过的 `model/option.go`。
+- 唯一冲突出现在 7 个 i18n 语言包：最初把新文案追加在文件末尾，而末尾正是上游放新文案的区域，
+  每个文件撞出 23 行冲突。
+- **修正**：把 14 条新文案按字母序插进 A-Z 有序区（`"Zoom"` 之前），冲突降到每个文件 2 行
+  —— 上游在 `"Enable Passkey"` 后面也插了一条，两边各一行，保留两行即可。
+  这类冲突是 6700 条扁平键的 JSON 按行合并的固有现象，任何人加文案都会遇到，2 行是可接受的下限。
+
+此约定已写入 `.agents/rules/fork-changes.md`，后续改动照此执行。
+
+另外确认：`production` 当前落后 `main` 8 个提交且**没有任何自有改动**（树与 `main` 一致），
+本分支包含 `production` 的全部历史，合并进 `production` 是 fast-forward，零冲突。
+
 #### 已知限制 / 待办
 
 - **未执行三数据库（SQLite / MySQL / PostgreSQL）验证矩阵**：本次没有改 schema、迁移或 GORM tag，
